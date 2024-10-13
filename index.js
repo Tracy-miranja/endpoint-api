@@ -11,6 +11,7 @@ const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const extractProfileDetails = require("./middleware/cvExtract")
+const { body, validationResult } = require('express-validator');
 require("dotenv").config();
 
 const app = express();
@@ -28,8 +29,21 @@ mongoose
     .catch((err) => console.error("MongoDB connection error:", err));
 
 // Register endpoint
-app.post("/api/register", async (req, res) => {
+app.post("/api/register", [
+    body('username').notEmpty().withMessage('Username is required'),
+    body('email').isEmail().withMessage('Please enter a valid email address'),
+    body('password')
+        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+        .matches(/\d/).withMessage('Password must contain a number')
+        .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
+], async (req, res) => {
     const { username, email, password } = req.body;
+
+    // Validate the input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
 
     try {
         const existingUser = await User.findOne({ email });
