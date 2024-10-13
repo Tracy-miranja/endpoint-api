@@ -55,7 +55,7 @@ Make sure you have the following installed:
    npm start
    ```
 
-The server should be running on `http://localhost:3000`.
+The server should be running on `http://localhost:5000`.
 
 ## Environment Variables
 
@@ -101,52 +101,7 @@ The server should be running on `http://localhost:3000`.
 ## Middleware
 
 - **Auth Middleware**: Validates JWT for protected routes.
-- **Role Check Middleware**: Ensures the user has the correct role (e.g., admin, super admin).
-
-## Usage
-
-### Example Request to Register a User
-
-```javascript
-fetch('http://localhost:3000/api/register', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-        username: 'yourusername',
-        email: 'youremail@example.com',
-        password: 'yourpassword',
-    }),
-})
-.then(response => response.json())
-.then(data => console.log(data))
-.catch(error => console.error('Error:', error));
-```
-
-### Example Request to Login a User
-
-```javascript
-fetch('http://localhost:3000/api/login', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-        email: 'youremail@example.com',
-        password: 'yourpassword',
-    }),
-})
-.then(response => response.json())
-.then(data => console.log(data))
-.catch(error => console.error('Error:', error));
-```
-
-## Base URL
-```
-http://localhost:PORT/api
-```
-Replace `PORT` with the port number where your server is running.
+- **Role Check Middleware**: Ensures the user has the correct role (e.g., admin, super admin) !Important
 
 ## Authentication
 All endpoints, except for registration and login, require a valid JWT token. Include the token in the `Authorization` header as follows:
