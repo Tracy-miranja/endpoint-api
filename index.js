@@ -12,14 +12,17 @@ const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const extractProfileDetails = require("./middleware/cvExtract")
 const { body, validationResult } = require('express-validator');
+const Application = require("./models/Application");
 require("dotenv").config();
 
 const app = express();
 app.use(express.json());
 
+// Multer for storage to the memory - for documents
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// Database Instance
 mongoose
     .connect(process.env.MONGODB_URI, {
         useNewUrlParser: true,
@@ -109,11 +112,23 @@ app.delete("/api/users/:id", auth, checkRole(["admin", "super admin"]), async (r
     }
 });
 
-// Get all users
+// Get all users with pagination GET /api/users?page=1&limit=10
 app.get("/api/users", auth, checkRole(["admin", "super admin"]), async (req, res) => {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const pageSize = parseInt(limit, 10);
     try {
-        const users = await User.find().select("-password");
-        res.json(users);
+        const users = await User.find()
+            .select("-password")
+            .limit(pageSize)
+            .skip((pageNumber - 1) * pageSize);
+        const totalUsers = await User.countDocuments();
+        res.json({
+            total: totalUsers,
+            page: pageNumber,
+            limit: pageSize,
+            users
+        });
     } catch (error) {
         console.error("Error fetching users:", error);
         res.status(500).json({ message: "Server error" });
@@ -189,17 +204,30 @@ app.post("/api/jobs", checkRole(["admin", "super admin"]), async (req, res) => {
     }
 });
 
-// Get all jobs
+// Get all jobs with pagination GET /api/jobs?page=1&limit=10
 app.get("/api/jobs", async (req, res) => {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const pageSize = parseInt(limit, 10);
+
     try {
         const jobs = await Job.find()
             .populate({
                 path: "created_by",
                 select: "-password"
             })
-            .populate("category_id");
+            .populate("category_id")
+            .limit(pageSize)
+            .skip((pageNumber - 1) * pageSize);
 
-        res.json(jobs);
+        const totalJobs = await Job.countDocuments();
+
+        res.json({
+            total: totalJobs,
+            page: pageNumber,
+            limit: pageSize,
+            jobs
+        });
     } catch (error) {
         console.error("Error fetching jobs:", error);
         res.status(500).json({ message: "Server error" });
@@ -343,6 +371,96 @@ app.delete("/api/categories/:id", auth, checkRole(["admin", "super admin"]), asy
         res.status(200).json({ message: "Category deleted successfully." });
     } catch (error) {
         console.error("Error deleting category:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Apply for a job
+app.post("/api/applications", auth, async (req, res) => {
+    const { jobId, resume, coverLetter } = req.body;
+    const applicantId = req.user.id;
+    try {
+        const application = new Application({
+            applicant: applicantId,
+            job: jobId,
+            resume,
+            coverLetter,
+        });
+        await application.save();
+        res.status(201).json({ message: "Application submitted successfully", application });
+    } catch (error) {
+        console.error("Application error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Get applications (applicant-specific or all for admin)
+app.get("/api/applications", auth, async (req, res) => {
+    try {
+        if (req.user.role === "admin" || req.user.role === "super admin") {
+            const applications = await Application.find()
+                .populate("applicant", "-password")
+                .populate("job");
+            return res.json(applications);
+        } else {
+            const applications = await Application.find({ applicant: req.user.id })
+                .populate("job");
+            return res.json(applications);
+        }
+    } catch (error) {
+        console.error("Error fetching applications:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Get application by ID
+app.get("/api/applications/:id", auth, async (req, res) => {
+    try {
+        const application = await Application.findById(req.params.id)
+            .populate("applicant", "-password")
+            .populate("job");
+        if (!application) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+    } catch (error) {
+        console.error("Error fetching application by ID:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Update application status
+app.put("/api/applications/:id/status", auth, checkRole(["admin", "super admin"]), async (req, res) => {
+    const { status } = req.body;
+    const validStatuses = ["applied", "interview", "hired", "rejected"];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+    }
+    try {
+        const application = await Application.findById(req.params.id);
+        if (!application) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+        application.status = status;
+        await application.save();
+        var html = "<p>Ola, your application status changed!</p>"
+        await sendEmail(application.applicant, `Job application status changed to: ${status}`, html);
+        res.status(200).json({ message: "Application status updated successfully." });
+    } catch (error) {
+        console.error("Error updating application status:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Delete application
+app.delete("/api/applications/:id", auth, checkRole(["admin", "super admin"]), async (req, res) => {
+    try {
+        const application = await Application.findByIdAndDelete(req.params.id);
+        if (!application) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+        res.json({ message: "Application deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting application:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
