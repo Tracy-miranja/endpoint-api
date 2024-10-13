@@ -38,13 +38,10 @@ app.post("/api/register", [
         .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
 ], async (req, res) => {
     const { username, email, password } = req.body;
-
-    // Validate the input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
-
     try {
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -76,7 +73,6 @@ app.post("/api/login", async (req, res) => {
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
             expiresIn: "1h",
         });
-
         res.json({ token });
     } catch (error) {
         console.error("Login error:", error);
@@ -105,7 +101,6 @@ app.delete("/api/users/:id", auth, checkRole(["admin", "super admin"]), async (r
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-
         await user.remove();
         res.json({ message: "User deleted successfully" });
     } catch (error) {
@@ -132,31 +127,21 @@ app.put("/api/profile/:id", auth, checkRole(["admin", "super admin", "job applic
         const file = req.file;
         let extractedText;
         let profileDetails;
-
-        // Handle file uploads
         if (file) {
-            // Handle PDF extraction
             if (file.mimetype === 'application/pdf') {
                 const dataBuffer = file.buffer;
                 const data = await pdfParse(dataBuffer);
                 extractedText = data.text;
             }
-
-            // Handle DOCX extraction
             if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                 const result = await mammoth.extractRawText({ buffer: file.buffer });
                 extractedText = result.value;
             }
-
             if (!extractedText) {
                 return res.status(400).json({ message: "Unsupported file type" });
             }
-
-            // Extract profile details from the extracted text
             profileDetails = extractProfileDetails(extractedText);
-
         } else {
-            // If no file is provided, assume JSON data is being sent in the request body
             if (req.body && Object.keys(req.body).length > 0) {
                 profileDetails = req.body;
             } else {
@@ -164,17 +149,14 @@ app.put("/api/profile/:id", auth, checkRole(["admin", "super admin", "job applic
             }
         }
 
-        // Update the user profile
         const updatedUser = await User.findByIdAndUpdate(
             userId,
             { profile: profileDetails },
             { new: true }
         );
-
         if (!updatedUser) {
             return res.status(404).json({ message: "User not found" });
         }
-
         res.json({ message: "Profile updated successfully", profile: updatedUser.profile });
     } catch (error) {
         console.error("Error updating profile:", error);
@@ -185,16 +167,12 @@ app.put("/api/profile/:id", auth, checkRole(["admin", "super admin", "job applic
 // Create Job Endpoint
 app.post("/api/jobs", checkRole(["admin", "super admin"]), async (req, res) => {
     const { created_by, title, description, salary_range, job_status, category_id } = req.body;
-
     if (!created_by || !title || !description || !salary_range || !category_id) {
         return res.status(400).json({ message: "All fields are required." });
     }
-
-    // Ensure salary_range has both min and max
     if (salary_range.min === undefined || salary_range.max === undefined) {
         return res.status(400).json({ message: "Salary range must include min and max." });
     }
-
     try {
         const newJob = new Job({
             created_by,
@@ -204,7 +182,6 @@ app.post("/api/jobs", checkRole(["admin", "super admin"]), async (req, res) => {
             job_status,
             category_id
         });
-
         const savedJob = await newJob.save();
         res.status(201).json(savedJob);
     } catch (error) {
@@ -263,11 +240,9 @@ app.get("/api/jobs/:id", async (req, res) => {
 app.put("/api/jobs/:id", auth, checkRole(["admin", "super admin"]), async (req, res) => {
     try {
         const updatedJob = await Job.findByIdAndUpdate(req.params.id, req.body, { new: true });
-
         if (!updatedJob) {
             return res.status(404).json({ message: "Job not found" });
         }
-
         res.json(updatedJob);
     } catch (error) {
         console.error("Error updating job:", error);
@@ -279,11 +254,9 @@ app.put("/api/jobs/:id", auth, checkRole(["admin", "super admin"]), async (req, 
 app.delete("/api/jobs/:id", auth, checkRole(["admin", "super admin"]), async (req, res) => {
     try {
         const deletedJob = await Job.findByIdAndDelete(req.params.id);
-
         if (!deletedJob) {
             return res.status(404).json({ message: "Job not found" });
         }
-
         res.json({ message: "Job deleted successfully" });
     } catch (error) {
         console.error("Error deleting job:", error);
@@ -340,23 +313,17 @@ app.put("/api/categories/:id", auth, checkRole(["admin", "super admin"]), async 
     try {
         const { id } = req.params;
         const { category_name } = req.body;
-
-        // Validate the input
         if (!category_name) {
             return res.status(400).json({ message: "Category name is required." });
         }
-
-        // Find and update the category
         const updatedCategory = await Category.findByIdAndUpdate(
             id,
             { category_name },
             { new: true, runValidators: true }
         );
-
         if (!updatedCategory) {
             return res.status(404).json({ message: "Category not found." });
         }
-
         res.status(200).json({ message: "Category updated successfully", category: updatedCategory });
     } catch (error) {
         console.error("Error updating category:", error);
